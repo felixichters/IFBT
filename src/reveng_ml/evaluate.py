@@ -3,7 +3,7 @@ Evaluation script for the RevEng-ML project.
 """
 import torch
 from sklearn.metrics import classification_report
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from reveng_ml.utils import get_pytorch_device
@@ -12,7 +12,7 @@ from reveng_ml.utils import get_pytorch_device
 class Evaluator:
     """Evaluates a trained model"""
 
-    def __init__(self, model, dataset, batch_size=32):
+    def __init__(self, model: torch.nn.Module, dataset: Dataset, batch_size: int = 32):
         """
         Creates a new Evaluator class
 
@@ -26,12 +26,12 @@ class Evaluator:
         self.dataset = dataset
         self.loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-    def evaluate(self):
+    def evaluate(self) -> str:
         """
         Execute evaluation
 
         Returns:
-            A dictionary containing the classification report from scikit-learn
+            A string containing the classification report from scikit-learn
         """
         self.model.eval()
         all_preds = []

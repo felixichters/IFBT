@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from reveng_ml.utils import get_pytorch_device
@@ -15,7 +15,14 @@ from reveng_ml.utils import get_pytorch_device
 class Trainer:
     """Trains a model using a dataset"""
 
-    def __init__(self, model, dataset, learning_rate=5e-5, batch_size=32, model_dir=Path('./models')):
+    def __init__(
+        self, 
+        model: torch.nn.Module, 
+        dataset: Dataset,
+        learning_rate: float = 5e-5, 
+        batch_size: int = 32,
+        model_dir: Path = Path('./models')
+    ):
         """
         Create a new Trainer class.
 
@@ -34,7 +41,7 @@ class Trainer:
         self.model_dir = model_dir
         self.model_dir.mkdir(exist_ok=True)
 
-    def train(self, epochs=3):
+    def train(self, epochs: int = 3):
         """
         Train for a number of epochs.
 
@@ -78,7 +85,7 @@ class Trainer:
             print("-" * (25 + len(str(epoch+1))))
 
 
-    def save_model(self, filename="reveng_model.bin"):
+    def save_model(self, filename: str = "reveng_model.bin"):
         """Saves the model state"""
         save_path = self.model_dir / filename
         torch.save(self.model.state_dict(), save_path)

@@ -38,9 +38,9 @@ def get_function_boundaries_from_elf(file_path: Path) -> dict[int, int]:
         file_path (Path): The path to the ELF file.
 
     Returns:
-        dict: A dictionary mapping function start file offsets to their sizes.
+        A dictionary mapping function start file offsets to their sizes.
     """
-    boundaries = {}
+    boundaries: dict[int, int] = {}
     file_bytes = b''
     try:
         with open(file_path, 'rb') as f:
@@ -61,12 +61,12 @@ def get_function_boundaries_from_elf(file_path: Path) -> dict[int, int]:
                     })
 
             # Access .eh_frame section
-            dwarfinfo = elffile.get_dwarf_info()
-            if not dwarfinfo:
+            dwarf_info = elffile.get_dwarf_info()
+            if not dwarf_info:
                 print(f"No DWARF info found in {file_path}, cannot get CFI entries.")
                 return {}
 
-            cfi_entries = dwarfinfo.EH_CFI_entries()
+            cfi_entries = dwarf_info.EH_CFI_entries()
             for entry in cfi_entries:
                 # Find all FDE (Frame Descriptor Entries) which correspond to functions
                 if not isinstance(entry, callframe.FDE):
@@ -110,6 +110,8 @@ class BinaryChunkDataset(Dataset):
         self.data_dir = data_dir
         self.chunk_size = chunk_size
         self.stride = stride
+        self.chunks: list[tuple[torch.Tensor, torch.Tensor]] = []
+
         self.files = []
         for f in data_dir.iterdir():
             if f.is_file():
@@ -120,7 +122,7 @@ class BinaryChunkDataset(Dataset):
                             self.files.append(f)
                 except IOError:
                     pass # Ignore files we can't read
-        self.chunks = []
+        
         self._create_chunks()
 
     def _create_chunks(self):
@@ -166,5 +168,5 @@ class BinaryChunkDataset(Dataset):
     def __len__(self) -> int:
         return len(self.chunks)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         return self.chunks[idx]

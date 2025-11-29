@@ -4,24 +4,25 @@ Model definition for the RevEng-ML project.
 from transformers import BertConfig, BertForTokenClassification
 
 def get_model(
-    vocab_size=257,  # TODO: check this later
-    # TODO: Which labels to choose?
-    num_labels=3,    # for now -> 0: None, 1: Function start, 2: Function end
-    hidden_size=256,
-    num_attention_heads=8,
-    num_hidden_layers=4,
-    intermediate_size=1024
-):
+    # TODO: check this later
+    vocab_size: int = 257, 
+    # TODO: Which labels to choose? For now -> 0: None, 1: Function start, 2: Function end
+    num_labels: int = 3,
+    hidden_size: int = 256,
+    num_attention_heads: int = 8,
+    num_hidden_layers: int = 4,
+    intermediate_size: int = 1024
+) -> BertForTokenClassification:
     """
     Initializes a new BERT model for token classification with a custom configuration.
 
     Args:
         vocab_size (int): Size of vocabulary 256 bytes (+ special token)
         num_labels (int): Number of labels for classification
-        hidden_size (int): The dimensionality of the model's hidden layers
-        num_attention_heads (int): The number of attention heads in the transformer
-        num_hidden_layers (int): The number of transformer layers
-        intermediate_size (int): The size of the "feed-forward" layer in the transformer
+        hidden_size (int): Dimensionality of the model's hidden layers
+        num_attention_heads (int): Number of attention heads in the transformer
+        num_hidden_layers (int): Number of transformer layers
+        intermediate_size (int): The size of the feed-forward layer in the transformer
 
     Returns:
         A `BertForTokenClassification` model instance.
