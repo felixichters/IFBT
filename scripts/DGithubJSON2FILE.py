@@ -26,6 +26,7 @@ import os
 import json
 import argparse
 
+from collections import defaultdict
 import gzip
 import shutil
 
@@ -41,55 +42,47 @@ def initiateJSON2FILE(json_file,source_dir, target_dir):
 
     json_file_path = os.path.join(source_dir, json_file)
 
-    # Load the JSON data from the file
+    # Dictionary to group files by repo
+    repo_files = defaultdict(list)
 
-    data = []
-    with open(json_file_path, 'r', encoding='utf-8',errors='ignore') as file:
+    # Load the JSON data (one file per line)
+    with open(json_file_path, 'r', encoding='utf-8', errors='ignore') as file:
         for line in file:
             try:
-                data.append(json.loads(line))
+                entry = json.loads(line)
+                repo_files[entry["repo_name"]].append(entry)
             except Exception as e:
-                print(e)
-                print(f"{json_file_path}: Found an error to load JSON")
+                print(f"Error parsing line: {e}")
                 continue
-    # Max path length for Windows (reduce by a buffer), relevant for Windows only
 
-    # Iterate through each repository in the JSON data
-    for repo in data:
+    # Write files to disk grouped by repo
+    for repo_name, files in repo_files.items():
         try:
-            repo_name = repo["repo_name"].replace('/', '_')
-            files = repo["file_array"]
-            # Create the base directory for the repository
-            repo_dir = os.path.join(target_dir, repo_name)
-
+            safe_repo_name = repo_name.replace('/', '_')
+            repo_dir = os.path.join(target_dir, safe_repo_name)
             os.makedirs(repo_dir, exist_ok=True)
-            # Iterate through each file in the repository
+
             for file_info in files:
+                file_path = file_info["path"]  # flat JSON key
+                file_content = file_info.get("content", "")
 
-                file_path = file_info["file_path"]
-                file_content = file_info["file_content"]
-                # Construct the path beginning from repository to the source or header file using os.path.join
-                full_path = os.path.join(repo_dir, file_path) # C_COMPILE/<repo>/<file>(.c|.h)
+                full_path = os.path.join(repo_dir, file_path)
+                absolute_path = os.path.abspath(full_path)
 
-                absolute_path_length = os.path.abspath(full_path) # usr/toge/C_COMPILE/<repo>/<file>(.c|.h)
-
-                # Checks first if max_path_len is set, and then checks if paths exceed maximal length
-                if max_path_len and len(absolute_path_length) > max_path_len:
+                # Skip files that exceed max path length on Windows
+                if max_path_len and len(absolute_path) > max_path_len:
                     continue
 
-                # Create any necessary directories for the file path
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
-
-
-                # Normalize the path to remove any redundant slashes or dots
                 normalized_path = os.path.normpath(full_path)
 
-                with open(normalized_path, 'w', encoding='utf-8', errors='ignore') as file:
-                    file.write(file_content)
-        except Exception as e:
-            #print(f'{json_file} caused the error {e}') # Usually this happens if repo has corrupt file paths or atleast unsupported file paths
-            continue
+                with open(normalized_path, 'w', encoding='utf-8', errors='ignore') as f:
+                    f.write(file_content)
 
+        except Exception as e:
+            print(f"Error processing repo {repo_name}: {e}")
+            continue
+            
 
 def process_single_json_file(args):
     json_files = os.listdir(args.source_path)

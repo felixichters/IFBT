@@ -5,6 +5,8 @@ SETTING UP A VIRTUAL ENVIRONTMENT FOR SECURELY EXECUTING THESE SCRIPTS IS AT YOU
 
 Developed by Burhan Akin Yilmaz, Master of Data and CS Student, Universität Heidelberg.
 
+Updated by Tim Schneeberger to improve performance of dependency resolution.
+
 This script is intended to be executed after ScraperSHO.py (SHO stands for "source and header to object").
 The script figures out the dependencies between object files within a directory, and links them to an executeable file.
 First, we figure out which files have the main (function) entry point. We then deduce by the symbols, which other object files are necessary for resolving undefined references, and recursively find other new objectfiles that are relevant.
@@ -128,32 +130,40 @@ def iterate_directories(directory,dependency):
     return dependency
 
 
-def recursive_dependency_scan(current_object_path, undefined_U_Symbols, dependency, dependentOn=None):
-    '''
-    Input: (Object file with main entry point, Undefined U symbols extracted from nm)
-    Output: Array of object files that are related (i.e. object files that resolve undefined symbols for the main target file).
-    Algorithm idea:
-    0. Initialize an (empty) array dependentOn, which will store all relevant object files. Goto 1.
-    1. We scan recursively trough the repository, and find the next potential relevant object file. If no more object files exist we temrinate and return dependentOn, otherwise goto 2.
-    2. Check whether the given object file is different from the main file. If not goto 1., otherwise goto 3.
-    3. Extract the defined symbols and check whether there is an intersection with the undefined symbols. If so append the file to dependentOn. Goto 4.
-    4. We now have to recursively check all dependencies towards this new object file. Goto 1.
-    '''
-    # Problem:
-    if not undefined_U_Symbols: # Early return if there are no undefined symbols.
-        return list(set())
-    if dependentOn is None:
-        dependentOn = [] # Set to store relevant object files for our target main file e.g. key_main = '../main.o'
-    for path, value in dependency.items(): # key is the object file path, value is the dependency object with the information isMain, undefined symbols, ...
-        if path != current_object_path and path not in dependentOn: # To avoid loops, we check if path is not in the already traversed dependentOn.
-            for symbol in value['defined_T_Symbols']:
-                if "main" == symbol: # A object file with main entry point cannot depend on another file with main function.
-                    break
-                if symbol in undefined_U_Symbols:
-                    dependentOn.append(path)
-                    dependentOn.extend(recursive_dependency_scan(path, value['undefined_U_Symbols'], dependency, dependentOn))
-                    break
-    return list(set(dependentOn)) # Set of all relevant object files
+def resolve_dependencies(main_object_path, dependency, symbol_map):
+    """
+    Iteratively resolves dependencies for a given main object file using a symbol map for efficiency.
+    This is an optimized version of the original recursive scan.
+    Input: (Path to main object file, dependency dictionary, symbol map)
+    Output: Array of object files that are related.
+    """
+    needed_files = set()
+    files_to_process = [main_object_path]
+    # Use a set for processed_files for efficient lookups
+    processed_files = {main_object_path}
+
+    # Using a list as a queue for breadth-first search
+    queue_idx = 0
+    while queue_idx < len(files_to_process):
+        current_path = files_to_process[queue_idx]
+        queue_idx += 1
+
+        # The symbols that this file needs
+        undefined_symbols = dependency[current_path].get('undefined_U_Symbols', [])
+
+        for symbol in undefined_symbols:
+            if symbol in symbol_map:
+                for provider_path in symbol_map[symbol]:
+                    if provider_path not in processed_files:
+                        # A object file with main entry point cannot be a dependency
+                        if dependency[provider_path].get('isMain', False):
+                            continue
+                        
+                        processed_files.add(provider_path)
+                        files_to_process.append(provider_path)
+                        needed_files.add(provider_path)
+
+    return list(needed_files)
 
 
 from multiprocessing import Pool, Value
@@ -222,14 +232,23 @@ def initiateObjectToBinary(args, directory_path): # directory_path is a repo pat
         '''
 
         dependency = iterate_directories(directory_path, dependency) # Here we traverse RECURSIVELY the DIRECTORIES!
+
+        # Build a map from defined symbols to the files that define them. This is done once per repository.
+        symbol_map = {}
+        for path, value in dependency.items():
+            for symbol in value.get('defined_T_Symbols', []):
+                if symbol not in symbol_map:
+                    symbol_map[symbol] = []
+                symbol_map[symbol].append(path)
+
         compile_commands = [] # Array of "gcc -o program main.o ..." commands, we might have multiple main-function files.
 
 
         for key, value in dependency.items(): # Iterate over all object files dependency dictionary
             if value['isMain'] == True:
-                # We now iterate over every object file, and remove from the undefined symbol list every entry, that the new object file covers on its defined symbol list.
-                # The moment the undefined list is empty we can compile to an executeable, ohterwise when all files have been traversed and we found nothing we terminate.
-                relevant_object_files = recursive_dependency_scan(key, value['undefined_U_Symbols'], dependency) # Last argument is for loop-avoidance purposes
+                # We now find all dependencies for the main object file.
+                # This is much faster than the old approach because we use the pre-built symbol_map.
+                relevant_object_files = resolve_dependencies(key, dependency, symbol_map)
                 #dependency[key]['dependentOn'] = relevant_object_files
                 program_path = os.path.join(directory_path,'executable')
                 compiler_setting = f'gcc -o {program_path}'

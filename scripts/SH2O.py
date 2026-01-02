@@ -3,6 +3,11 @@ WARNING: Do not execute this script without an secured environment, or atleast, 
 
 This script was developed by Akin Yilmaz, Master of Data and CS Student from University Heidelberg.
 
+Updated by Tim Schneeberger to:
+* Use multiprocessing within repositories to speed up compilation
+* Skip repositories with too many failed compilations and too little successful ones
+* Avoid writing temporary c-source files to disk to save time
+
 It traverses a directory C_COMPILE that contains subdirectories (repositories) with source and header files.
 The script recursively finds all C files and compiles them with given arguments to object files.
 The COMPILED directory maintains the same directory structure as C_COMPILE.
@@ -78,7 +83,7 @@ def is_c_file_compilable(c_file_path, visited_include_folders,args, error_log_fi
     optimization_level = args.optimization
     timeout = args.timeout
     max_file_size = args.max_file_size
-    
+
     path_elements = []
     path_normalized = c_file_path
 
@@ -110,8 +115,8 @@ def is_c_file_compilable(c_file_path, visited_include_folders,args, error_log_fi
     file_name = path_elements[-1]  # Get file name
 
     directory_elements = path_elements[
-                         len(source_elements)-1:-1]  # Get the neccessary directory structure /directory1/directory2 but remove ->C_COMPILE<-/directory1/directory2
-                         #Keep in mind that user can give relative paths of the form ../COMPILED/ so we need to pay attention where the directory1 index starts.
+        len(source_elements)-1:-1]  # Get the neccessary directory structure /directory1/directory2 but remove ->C_COMPILE<-/directory1/directory2
+    #Keep in mind that user can give relative paths of the form ../COMPILED/ so we need to pay attention where the directory1 index starts.
 
     # Now we can construct the destination directory which is a mirror except C_COMPILE -> COMPILED
     compile_destination_directory = os.path.join(destinationPath,*directory_elements) # C_COMPILE/dir1/.../dirn -> COMPILE/dir1/.../dirn
@@ -120,15 +125,17 @@ def is_c_file_compilable(c_file_path, visited_include_folders,args, error_log_fi
     compile_destination = os.path.join(compile_destination_directory,file_name.rsplit('.', 1)[0] + '.o')
     all_include_folders = ' '.join(['-I"'+folder+'"' for folder in visited_include_folders]) # We do -I"<path>" since, <path> could contain directory names with spaces.
     # Before we compile, we adjust all include headers of the form #include <...> to #include "...". The reason is explained in replace_include_directives() docstring.
-    
+
     # Here we first remove all comments from the source file!
+    try:
+        preprocess_cmd = f"gcc -fpreprocessed -dD -E -P \"{c_file_path}\""
+        preprocess_result = subprocess.run(preprocess_cmd, shell=True, capture_output=True, text=True, errors='ignore', timeout=timeout)
+        if preprocess_result.returncode != 0:
+            return False
+        c_code = preprocess_result.stdout
+    except Exception:
+        return False
 
-    #Uncomment if you want comments maintained! But then you need a new solution, since you can't have one lined programs anymore.
-    #Maybe don't remove linebreak informations
-    compiler_preprocessor_rm_comments = subprocess.run(f"gcc -fpreprocessed -dD -E -P  {c_file_path} -o temp{os.getpid()}.c && mv temp{os.getpid()}.c {c_file_path}", shell=True, capture_output=True)
-
-    with open(c_file_path, 'r', errors='ignore') as c_file:
-        c_code = c_file.read()
     c_code = replace_include_directives(c_code)
     with open(c_file_path, 'w', errors='ignore') as c_file:
         c_file.write(c_code)
@@ -136,16 +143,22 @@ def is_c_file_compilable(c_file_path, visited_include_folders,args, error_log_fi
     # Note: -I argument takes directory path without space. If we run gcc -c source.c with subdir "Include" we use -IInclude to pass Include directory
 
     compiler_bomb_restriction_prefix = f'ulimit -f {max_file_size} && timeout {timeout} '
-    compiler_options = f'{compiler} -c -gdwarf -O{optimization_level} -o "{compile_destination}" "{c_file_path}" {all_include_folders}'  # Note: If neededd, you can compile without producing an output binary by gcc -c /dev/null if you want
+    compiler_options = f'{compiler} ' + '-pipe ' if compiler == 'gcc' else ''
+    compiler_options += f'-c -gdwarf -O{optimization_level} -o "{compile_destination}" "{c_file_path}" {all_include_folders}'  # Note: If neededd, you can compile without producing an output binary by gcc -c /dev/null if you want
     compile_cmd = compiler_bomb_restriction_prefix+compiler_options
     if len(compile_cmd) > MAX_SHELL_SIZE: # Windows max size shell is 8191
         return 0
 
-    compile_result = subprocess.run(compile_cmd, shell=True, capture_output=True)
+    try:
+        compile_result = subprocess.run(compile_cmd, shell=True, capture_output=True)
+    except Exception as e:
+        if "Argument list too long" in str(e):
+            return False
+
     if compile_result.returncode != 0:
         error_message = compile_result.stderr.decode('utf-8',errors='ignore')
-        with open(error_log_file, 'a',errors='ignore') as error_file:
-            error_file.write(f"{compile_cmd}\n{c_file_path}\n{error_message}\n")
+        #with open(error_log_file, 'a',errors='ignore') as error_file:
+        #    error_file.write(f"{compile_cmd}\n{c_file_path}\n{error_message}\n")
     elif compile_result.returncode == 0:
         # Here we prepend to the source code how the object file was compiled (all include directories), e.g. "gcc -c -o COMPILED/.../random.o C_COMPILE/.../random.c -IC_COMPILE/.../Includes"
         with open(c_file_path, 'w', errors='ignore') as c_file:
@@ -182,57 +195,106 @@ def list_immediate_folders(directory, start_folder=None):
         break  # We break after the first iteration to only get the first level of directories
 
     return immediate_folders
-def get_file_list(directory):
-    file_list = []
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            file_path = os.path.join(root, file)
-            if file.endswith(".c"):  # We only look for C files #CPP-Note
-                file_list.append(file_path)
-            # To not traverse twice due to performance reasons we do the following right here:
-            # Before we compile, we adjust all include headers of the form #include <...> to #include "...". The reason is explained in replace_include_directives() docstring.
-            if file.endswith(".h"):
-                # Before we compile, we adjust all include headers of the form #include <...> to #include "...". The reason is explained in replace_include_directives() docstring.
-                file_path = os.path.join(root, file)
-                with open(file_path, 'r', errors='ignore') as h_file:
-                    c_code = h_file.read()
-                c_code = replace_include_directives(c_code)
-                with open(file_path, 'w', errors='ignore') as h_file:
-                    h_file.write(c_code)
-    return file_list
-def get_all_directories(directory):
-    dir_list = []
-    # os.walk generates the file names in a directory tree by walking either top-down or bottom-up.
-    for root, dirs, files in os.walk(directory):
-        for dir_name in dirs:
-            # Construct the full path to the directory
-            dir_path = os.path.join(root, dir_name)
-            dir_list.append(dir_path)
-    return dir_list
 
 
-
-successfulCompilations = Value('i', 0) 
-def compileRecursive(args, repository):
+successfulCompilations = Value('i', 0)
+def compile_worker(c_file_path, visited_include_folders, args, repo_path, repo_stats, skipped_repos):
+    """Worker function to compile a single C file."""
     global successfulCompilations
-    visited_include_folders = get_all_directories(repository)
-    for c_file_path in get_file_list(repository):
-        if is_c_file_compilable(c_file_path, visited_include_folders, args):
-            with successfulCompilations.get_lock():  # Ensure atomicity
-                successfulCompilations.value += 1
-            print(f'File {c_file_path} is {GREEN}COMPILEABLE.{RESET}')
+
+    # First, check if the repository has been flagged for skipping.
+    if repo_path in skipped_repos or repo_stats[repo_path].get('flagged', False):
+        return  # Silently exit if repo is already skipped.
+
+    result = is_c_file_compilable(c_file_path, visited_include_folders, args)
+
+    if result:
+        with successfulCompilations.get_lock():
+            successfulCompilations.value += 1
+        print(f'File {c_file_path} is {GREEN}COMPILEABLE.{RESET}')
+    else:
+        print(f'File {c_file_path} is {RED}NOT compileable{RESET}. Removing...')
+
+    # Update stats and check if repo should be skipped for future tasks
+    repo_stat_proxy = repo_stats[repo_path]
+    with repo_stat_proxy['lock']:
+        s = repo_stat_proxy['success']
+        f = repo_stat_proxy['failed']
+
+        if result:
+            s += 1
+            repo_stat_proxy['success'] = s
         else:
-            print(f'File {c_file_path} is {RED}NOT compileable{RESET}. Removing...')
+            f += 1
+            repo_stat_proxy['failed'] = f
+
+        was_flagged = repo_stat_proxy.get('flagged', False)
+        if not was_flagged and f >= 200 and s < 5:
+            skipped_repos[repo_path] = True
+            repo_stat_proxy['flagged'] = True
+            print(f"Repo {repo_path} has too many failures. Skipping remaining files.")
+
 
 def parallel_process(args):
-    with Pool(args.number_of_processes) as p:
-            p.starmap(compileRecursive,
-                      [(args, entry) for entry in list_immediate_folders(args.source_path, args.start_folder)])
+    manager = multiprocessing.Manager()
+    repo_stats = manager.dict()
+    skipped_repos = manager.dict()
 
+    with Pool(args.number_of_processes) as pool:
+        # 1. Collect and submit tasks asynchronously
+        repositories = list_immediate_folders(args.source_path, args.start_folder)
+        print(f"Found {len(repositories)} repositories. Collecting and submitting tasks...")
+
+        total_tasks = 0
+        for repo_path in repositories:
+            if repo_path in skipped_repos:
+                continue
+
+            repo_stats[repo_path] = manager.dict({'success': 0, 'failed': 0, 'lock': manager.Lock()})
+            c_files = []
+            visited_include_folders = []
+            h_files = []
+            for root, dirs, files in os.walk(repo_path):
+                for d in dirs:
+                    visited_include_folders.append(os.path.join(root, d))
+                for f in files:
+                    file_path = os.path.join(root, f)
+                    if f.endswith('.c'):
+                        c_files.append(file_path)
+                    elif f.endswith('.h'):
+                        h_files.append(file_path)
+
+            # Modify headers before creating compile tasks for this repo
+            for h_file in h_files:
+                try:
+                    with open(h_file, 'r', errors='ignore') as f:
+                        h_code = f.read()
+
+                    replaced_h_code = replace_include_directives(h_code)
+
+                    if replaced_h_code != h_code:
+                        with open(h_file, 'w', errors='ignore') as f:
+                            f.write(replaced_h_code)
+                except Exception:
+                    pass
+
+            # Create and submit tasks for this repo
+            for c_file in c_files:
+                if repo_path in skipped_repos:
+                    print(f"Skipping remaining files for repo: {repo_path}")
+                    break  # Stop submitting tasks for this repo
+
+                task_args = (c_file, visited_include_folders, args, repo_path, repo_stats, skipped_repos)
+                pool.apply_async(compile_worker, args=task_args)
+                total_tasks += 1
+
+        print(f"Submitted {total_tasks} tasks to the pool. Waiting for completion...")
+        pool.close()
+        pool.join()
 
 
 if __name__ == '__main__':
-    
+
     # Setting up argparse to handle command-line arguments
     parser = argparse.ArgumentParser(description=R'''
                _____  __  __ ___   ____ 
@@ -248,7 +310,7 @@ if __name__ == '__main__':
                                                  'The COMPILED directory maintains the same directory structure as C_COMPILE\n'
                                                  '\nMinimal command:\n\n'
                                                  'python3 SH2O.py\n'
-                                                 ,formatter_class=RawTextHelpFormatter)
+                                     ,formatter_class=RawTextHelpFormatter)
 
 
     compilePath = "C_COMPILE" # Where our repositories with source and header files are
@@ -280,7 +342,7 @@ if __name__ == '__main__':
     Last Repo:
     File C_COMPILE/evolvIQ_iqserialization
     '''
-    
+
     # Parsing the arguments
     args = parser.parse_args()
 
