@@ -127,6 +127,13 @@ def main(input_dir=RAW_DATA_DIR, output_dir=DIR_COMPILED):
                 print(f"[*] Removing unwanted repo directory: {dir_to_remove}")
                 shutil.rmtree(dir_to_remove)
 
+            # Check if sound/soc/codecs exists in the repo to get rid of Linux kernel repos
+            elif os.path.exists(os.path.join(DIR_C_COMPILE, directory, "sound", "soc", "codecs")):
+                dir_to_remove = os.path.join(DIR_C_COMPILE, directory)
+                print(f"[*] Removing Linux kernel repo: {dir_to_remove}")
+                shutil.rmtree(dir_to_remove)
+            
+
         # Check if C_COMPILE is empty after filtering
         if not os.listdir(DIR_C_COMPILE):
             print("[!] No valid source files to compile after filtering. Skipping chunk.")
