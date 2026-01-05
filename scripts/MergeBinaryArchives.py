@@ -36,44 +36,48 @@ def main(input_dir: Path = INPUT_DIR, output_dir: Path = OUTPUT_DIR):
 
     archives = [x for x in input_dir.glob("*.tar.gz")]
     for archive_path in tqdm(archives, desc="Processing archives"):
-        with tarfile.open(archive_path, "r:gz") as tar:
-            # Collect executables per top-level folder
-            execs_per_dir = defaultdict(list)
-    
-            for member in tar.getmembers():
-                if not is_executable_candidate(member):
-                    continue
-                    
-                path = Path(member.name)
-                if len(path.parts) < 2:
-                    continue
-    
-                top_dir = path.parts[0]
-                execs_per_dir[top_dir].append(member)
-    
-            # Extract and rename
-            for top_dir, members in execs_per_dir.items():
-                single_exec = len(members) == 1
-    
-                for member in members:
-                    path = Path(member.name)
-                    exe_name = path.name
-    
-                    if single_exec:
-                        new_name = top_dir
-                    else:
-                        new_name = f"{top_dir}_{exe_name}"
-    
-                    output_path = OUTPUT_DIR / new_name
-    
-                    fileobj = tar.extractfile(member)
-                    if fileobj is None:
+        try:
+            with tarfile.open(archive_path, "r:gz") as tar:
+                # Collect executables per top-level folder
+                execs_per_dir = defaultdict(list)
+        
+                for member in tar.getmembers():
+                    if not is_executable_candidate(member):
                         continue
-    
-                    with open(output_path, "wb") as f:
-                        shutil.copyfileobj(fileobj, f)
-    
-                    os.chmod(output_path, member.mode)
+                        
+                    path = Path(member.name)
+                    if len(path.parts) < 2:
+                        continue
+        
+                    top_dir = path.parts[0]
+                    execs_per_dir[top_dir].append(member)
+        
+                # Extract and rename
+                for top_dir, members in execs_per_dir.items():
+                    single_exec = len(members) == 1
+        
+                    for member in members:
+                        path = Path(member.name)
+                        exe_name = path.name
+        
+                        if single_exec:
+                            new_name = top_dir
+                        else:
+                            new_name = f"{top_dir}_{exe_name}"
+        
+                        output_path = OUTPUT_DIR / new_name
+        
+                        fileobj = tar.extractfile(member)
+                        if fileobj is None:
+                            continue
+        
+                        with open(output_path, "wb") as f:
+                            shutil.copyfileobj(fileobj, f)
+        
+                        os.chmod(output_path, member.mode)
+        except tarfile.ReadError:
+            # Empty or invalid archive
+            continue
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Merge and extract executable binaries from multiple .tar.gz archives.")
