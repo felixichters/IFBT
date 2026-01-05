@@ -44,8 +44,6 @@ def main(input_dir: Path = INPUT_DIR, output_dir: Path = OUTPUT_DIR):
                 if not is_executable_candidate(member):
                     continue
                     
-                print(f"Found executable: {member.name} in archive {archive_path.name}")
-    
                 path = Path(member.name)
                 if len(path.parts) < 2:
                     continue
