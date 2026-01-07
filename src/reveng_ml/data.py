@@ -113,16 +113,21 @@ class BinaryChunkDataset(Dataset):
         self.chunks: list[tuple[torch.Tensor, torch.Tensor]] = []
 
         self.files = []
+        print("Scanning input files for dataset in directory:", data_dir)
         for f in data_dir.iterdir():
             if f.is_file():
-                try:
-                    with open(f, 'rb') as a_file:
-                        # Check for ELF magic number
-                        if a_file.read(4) == b'\x7fELF':
-                            self.files.append(f)
-                except IOError:
-                    pass # Ignore files we can't read
+                self.files.append(f)
+                # Skip ELF validation for performance reasons
+                #try:
+                #    with open(f, 'rb') as a_file:
+                #        # Check for ELF magic number
+                #        if a_file.read(4) == b'\x7fELF':
+                #            self.files.append(f)
+                #except IOError:
+                #    pass # Ignore files we can't read
         
+        # Randomize file order
+        shuffle(self.files)
         self._create_chunks()
 
     def _create_chunks(self):
