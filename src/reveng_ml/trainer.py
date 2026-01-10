@@ -60,6 +60,7 @@ class Trainer:
 
             for i, (batch_data, batch_labels) in enumerate(progress_bar):
                 batch_labels = batch_labels.to(self.device)
+                batch_data = batch_data.to(self.device)
 
                 # Clear prev. gradients
                 self.model.zero_grad()

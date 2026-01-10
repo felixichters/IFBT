@@ -5,7 +5,7 @@ from pathlib import Path
 from io import BytesIO
 import subprocess
 from tempfile import TemporaryDirectory
-
+from random import shuffle
 import torch
 from torch.utils.data import Dataset
 from elftools.elf.elffile import ELFFile
