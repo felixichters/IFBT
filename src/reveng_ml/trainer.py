@@ -21,7 +21,8 @@ class Trainer:
         dataset: Dataset,
         learning_rate: float = 5e-5, 
         batch_size: int = 32,
-        model_dir: Path = Path('./models')
+        model_dir: Path = Path('./models'),
+        class_weight_boundary: float = 100.00
     ):
         """
         Create a new Trainer class.
@@ -32,6 +33,7 @@ class Trainer:
             learning_rate (float): Optimizer learning rate
             batch_size (int): Samples per batch
             model_dir (Path): Model output directory
+            class_weight_boundary (float): Weight for boundary classes (B-FUNC, E-FUNC)
         """
         self.device = get_pytorch_device()
         self.model = model.to(self.device)
@@ -40,6 +42,7 @@ class Trainer:
         self.optimizer = AdamW(self.model.parameters(), lr=learning_rate)
         self.model_dir = model_dir
         self.model_dir.mkdir(exist_ok=True)
+        self.class_weights = torch.tensor([1.0, class_weight_boundary, class_weight_boundary]).to(self.device)
 
     def train(self, epochs: int = 3):
         """
@@ -66,9 +69,13 @@ class Trainer:
                 self.model.zero_grad()
 
                 # Forward pass
-                outputs = self.model(input_ids=batch_data, labels=batch_labels)
+                outputs = self.model(input_ids=batch_data)
                 
-                loss = outputs.loss
+                # Compute loss manually with class weights
+                logits = outputs.logits
+                loss_fct = torch.nn.CrossEntropyLoss(weight=self.class_weights)
+                loss = loss_fct(logits.view(-1, 3), batch_labels.view(-1))
+
                 total_loss += loss.item()
 
                 # Backward pass and optimization

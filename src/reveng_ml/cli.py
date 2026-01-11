@@ -21,6 +21,7 @@ def train(
     learning_rate: float = typer.Option(5e-5, "--lr", "-l", help="Learning rate"),
     chunk_size: int = typer.Option(512, help="Size of each binary chunk"),
     stride: int = typer.Option(256, help="Stride for overlapping chunks"),
+    class_weight_boundary: float = typer.Option(100.0, "--class-weight", "-w", help="Weight for boundary classes (B-FUNC, E-FUNC). Higher = more focus on boundaries"),
 ):
     """
     Train a new function boundary detection model.
@@ -41,7 +42,7 @@ def train(
     model = get_model()
 
     # Train
-    trainer = Trainer(model, dataset, learning_rate=learning_rate, batch_size=batch_size, model_dir=model_dir)
+    trainer = Trainer(model, dataset, learning_rate=learning_rate, batch_size=batch_size, model_dir=model_dir, class_weight_boundary=class_weight_boundary)
     trainer.train(epochs=epochs)
 
     # Save
