@@ -5,10 +5,11 @@ import typer
 from pathlib import Path
 import torch
 
+from reveng_ml.evaluate import Evaluator
 from reveng_ml.data import BinaryChunkDataset
 from reveng_ml.model import get_model
 from reveng_ml.trainer import Trainer
-from reveng_ml.evaluate import Evaluator
+
 
 app = typer.Typer(help="Function boundary detection model training & evaluation")
 
@@ -55,8 +56,8 @@ def evaluate(
     model_path: Path = typer.Option("models/reveng_boundary_detector_final.bin", "--model-path", "-m", help="Trained model path"),
     data_dir: Path = typer.Option("data/test", "--data-dir", "-d", help="Test data directory"),
     batch_size: int = typer.Option(32, "--batch-size", "-b", help="Evaluation batch size"),
-    chunk_size: int = typer.Option(512, help="Size of each binary chunk"),
-    stride: int = typer.Option(256, help="Stride for overlapping chunks"),
+    chunk_size: int = typer.Option(510, help="Size of each binary chunk"),
+    stride: int = typer.Option(255, help="Stride for overlapping chunks"),
 ):
     """
     Evaluate a trained model on a test dataset.

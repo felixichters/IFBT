@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from elftools.elf.elffile import ELFFile
 from elftools.common.exceptions import ELFError
 from elftools.dwarf import callframe
-
+import os
 def strip_elf_debug_sections(file_path: Path, output_path: Path):
     """
     Strips debug sections from an ELF file using 'strip' CLI tool.
