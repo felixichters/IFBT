@@ -64,12 +64,13 @@ class Evaluator:
         
         with open(xdaDatasetInfoPath,"wb") as f:
             pickle.dump([os.path.abspath(self.dataset.data_dir),self.dataset.chunk_size,self.dataset.stride],f,0)
-        print(os.getcwd())
+        
         try:
-            subprocessResult=subprocess.run(["./src/reveng_ml/ComparativeEvaluation/runInferXDA.sh"],shell=True,check=True,capture_output=True)
+            subprocessResult=subprocess.check_output(["./src/reveng_ml/ComparativeEvaluation/runInferXDA.sh"],shell=True,check=True,capture_output=True)
         except subprocess.CalledProcessError as e:
             print(f"Error using XDA to infer the dataset {xdaResultPath}: {e.stderr.decode().strip()}")
             raise
+
 
         with open(xdaResultPath,"rb") as f:
             xdaResult = pickle.load(f)
