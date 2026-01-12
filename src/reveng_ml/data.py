@@ -100,7 +100,7 @@ class BinaryChunkDataset(Dataset):
     This dataset reads binary files from a directory, extracts function boundaries
     to create labels, and provides chunks of the binary and corresponding labels for training.
     """
-    def __init__(self, data_dir: Path, chunk_size=512, stride=256):
+    def __init__(self, data_dir: Path, chunk_size=512, stride=256, randomizeFileOrder=True):
         """
         Args:
             data_dir (Path): Directory containing the *unstripped* binary files.
@@ -127,7 +127,8 @@ class BinaryChunkDataset(Dataset):
                 #    pass # Ignore files we can't read
         
         # Randomize file order
-        shuffle(self.files)
+        if randomizeFileOrder:
+            shuffle(self.files)
         self._create_chunks()
 
     def _create_chunks(self):

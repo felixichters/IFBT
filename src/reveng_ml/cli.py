@@ -74,7 +74,7 @@ def evaluate(
 
     # Initialize dataset
     print(f"Loading test data from {data_dir}...")
-    dataset = BinaryChunkDataset(data_dir=data_dir, chunk_size=chunk_size, stride=stride)
+    dataset = BinaryChunkDataset(data_dir=data_dir, chunk_size=chunk_size, stride=stride, randomizeFileOrder=False)
     if not dataset:
         print("Warning: The test dataset is empty. No evaluation will be performed.")
         raise typer.Exit()
