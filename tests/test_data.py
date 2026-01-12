@@ -37,6 +37,7 @@ def sample_binary():
         # Compile the C code
         compile_command = ["gcc", "-o", str(unstripped_binary), str(c_file)]
         subprocess.run(compile_command, check=True)
+        c_file.unlink()
 
         # TODO: with(tmpdir) exits scope and deletes temp. directory when this function returns.
         #       However, we pass the temporary path to the test functions, which try to access it later.
@@ -110,7 +111,7 @@ def test_binary_chunk_dataset(sample_binary, capsys):
     data_dir = sample_binary.parent
     
     with capsys.disabled(): # Disable PyTest capturing to print to console
-        dataset = BinaryChunkDataset(data_dir=data_dir, chunk_size=128, stride=64)
+        dataset = BinaryChunkDataset(data_dir=data_dir, randomize=False, chunk_size=128, stride=64)
     
     # Ensure some chunks were created
     assert len(dataset) > 0
