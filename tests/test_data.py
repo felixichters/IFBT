@@ -111,8 +111,8 @@ def test_binary_chunk_dataset(sample_binary, capsys):
     data_dir = sample_binary.parent
     
     with capsys.disabled(): # Disable PyTest capturing to print to console
-        dataset = BinaryChunkDataset(data_dir=data_dir, randomize=False, chunk_size=128, stride=64)
-    
+        dataset = BinaryChunkDataset(data_dir=data_dir, chunk_size=128, stride=64, randomizeFileOrder=False)
+
     # Ensure some chunks were created
     assert len(dataset) > 0
     
