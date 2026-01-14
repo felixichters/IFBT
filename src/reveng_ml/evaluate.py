@@ -1,6 +1,7 @@
 """
 Evaluation script for the RevEng-ML project.
 """
+import os.path
 import torch
 from sklearn.metrics import classification_report
 from torch.utils.data import DataLoader, Dataset
@@ -11,6 +12,8 @@ import subprocess
 from reveng_ml.utils import get_pytorch_device
 
 import os
+from pathlib import Path
+
 class Evaluator:
     """Evaluates a trained model"""
 
@@ -59,14 +62,14 @@ class Evaluator:
 
 
         print("Starting xda evaluation...")
-        xdaDatasetInfoPath = "src/reveng_ml/ComparativeEvaluation/XDA/dataset.info"
-        xdaResultPath = "src/reveng_ml/ComparativeEvaluation/XDA/result.inferred"
-        
+        xdaDatasetInfoPath = os.path.abspath(Path("src/reveng_ml/ComparativeEvaluation/XDA/dataset.info"))
+        xdaResultPath = os.path.abspath(Path("src/reveng_ml/ComparativeEvaluation/XDA/result.inferred"))
+        xdaExecutablePath = os.path.abspath(Path("src/reveng_ml/ComparativeEvaluation/runInferXDA.sh"))
         with open(xdaDatasetInfoPath,"wb") as f:
             pickle.dump([os.path.abspath(self.dataset.data_dir),self.dataset.chunk_size,self.dataset.stride],f,0)
         
         try:
-            subprocessResult=subprocess.check_output(["./src/reveng_ml/ComparativeEvaluation/runInferXDA.sh"],shell=True,check=True,capture_output=True)
+            subprocessResult=subprocess.run(["./src/reveng_ml/ComparativeEvaluation/runInferXDA.sh", str(xdaDatasetInfoPath),str(xdaResultPath)],shell=False,check=True,capture_output=True)
         except subprocess.CalledProcessError as e:
             print(f"Error using XDA to infer the dataset {xdaResultPath}: {e.stderr.decode().strip()}")
             raise

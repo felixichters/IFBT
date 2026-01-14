@@ -140,3 +140,5 @@ result/*
 # playground
 # scripts/play/
 
+# calculated datasets
+*.dataset12df9fd3ba025de842c2861c44286f42f4bff00c77ea9037cc21e81a5cd6c9f08c00b21c84b2437d7d44aa97db5526433d0e06c5f3c699db66d178fe2c10c65d.dataset

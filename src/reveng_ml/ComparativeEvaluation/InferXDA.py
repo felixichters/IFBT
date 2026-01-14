@@ -117,7 +117,7 @@ class XDAChunkDataset(Dataset):
             stride (int): The step size to move when creating overlapping chunks.
         """
         if chunk_size > 510:
-            raise Exception("invalid chunk size for XDA")
+            raise Exception("invalid chunk size for XDA: " + str(chunk_size))
         
         self.data_dir = Path(data_dir)
         self.chunk_size = chunk_size
@@ -250,9 +250,10 @@ def infer_XDA(dataset):
     """
     
     
-    # Load our model
+    
     xda = RobertaModel.from_pretrained('checkpoints/finetune_msvs_funcbound_64', 'checkpoint_best.pt',
                                        'data-bin/funcbound_msvs_64', bpe=None, user_dir='finetune_tasks')
+    
     xda.eval()
     
     print("Starting XDA inference...")
@@ -260,23 +261,27 @@ def infer_XDA(dataset):
     all_labels = []
     
     progress_bar = tqdm(DataLoader(dataset, batch_size=1, shuffle=False), desc="Inferring", leave=False)
+
     with torch.no_grad():
         for batch_data, batch_labels in progress_bar:
             #print(batch_data)#TODO remove
-            print(batch_data)
-            print(' '.join([hex(b)[2:].ljust(2,'0') for b in batch_data[0]]))
+            #print(batch_data)
+            #print(' '.join([hex(b)[2:].ljust(2,'0') for b in batch_data[0]]))
             encoded_tokens = xda.encode(' '.join([hex(b)[2:].ljust(2,'0') for b in batch_data[0]]))
             #print(list(zip([hex(b)[2:].ljust(2,'0') for b in batch_data[0]],[a.item() for a in encoded_tokens])))
             # Get model predictions
-            print(encoded_tokens)
+            #print(encoded_tokens)
             logprobs = xda.predict('funcbound', encoded_tokens)
-            print(logprobs)
+            #print(logprobs)
+            #predictions = logprobs.argmax(dim=2)[0]
+            #sample_pred = torch.mode(predictions).values.item()
+            #all_preds.append(sample_pred)
+            #all_labels.append(batch_labels.flatten()[0].item())
             predictions = logprobs.argmax(dim=2).view(-1).data
-            print(predictions)
-            print(batch_labels)
-            print()
+            
             all_preds.extend(predictions)
             all_labels.extend(batch_labels.cpu().numpy().flatten())
+
 
     print("XDA-Inference complete.")
         
@@ -331,7 +336,7 @@ def main(datasetPath:Path, resultFilePath:Path):
             raise RuntimeError("Failed to infer dataset with xda: ") from e
         #save to file
         with open(resultPath,"wb") as resultFile:
-            pickle.dump([all_preds,all_labels], resultFile, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump([all_labels,all_preds], resultFile, protocol=pickle.HIGHEST_PROTOCOL)
             
             #avoid datasets beeing added into git repository
             with open(".gitignore","a") as f:
@@ -350,7 +355,7 @@ def main(datasetPath:Path, resultFilePath:Path):
 if __name__ == "__main__":
     path1 = os.path.abspath(sys.argv[1])
     path2 = os.path.abspath(sys.argv[2])
-    os.chdir(os.path.dirname(Path(sys.argv[0])))
+    #os.chdir(os.path.dirname(Path(sys.argv[0])))
     #TODO: for testing:
     #path1 = Path("dataset.info")
     #path2 = Path("result.inferred")
